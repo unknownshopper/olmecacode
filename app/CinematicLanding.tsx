@@ -22,6 +22,7 @@ function TerminalDemo() {
     [],
   );
 
+  const windowSize = 7;
   const [count, setCount] = useState(1);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -42,6 +43,19 @@ function TerminalDemo() {
     el.scrollTop = el.scrollHeight;
   }, [count]);
 
+  const visibleLines = useMemo(() => {
+    const lastIndex = count - 1;
+    const size = Math.min(windowSize, lines.length);
+    const start = lastIndex - (size - 1);
+
+    return Array.from({ length: size }, (_, i) => {
+      let idx = start + i;
+      while (idx < 0) idx += lines.length;
+      idx = idx % lines.length;
+      return { idx, text: lines[idx] };
+    });
+  }, [count, lines, windowSize]);
+
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/40">
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
@@ -59,12 +73,12 @@ function TerminalDemo() {
       <div className="px-4 py-4">
         <div
           ref={scrollRef}
-          className="h-44 overflow-y-auto font-mono text-xs leading-6 text-zinc-200"
+          className="h-36 overflow-y-auto font-mono text-xs leading-6 text-zinc-200"
         >
-          {lines.slice(0, count).map((l) => (
-            <div key={l} className="whitespace-pre-wrap">
-              <span className={l.startsWith(">") ? "text-emerald-200" : ""}>
-                {l}
+          {visibleLines.map(({ idx, text }) => (
+            <div key={`${idx}-${text}`} className="whitespace-pre-wrap">
+              <span className={text.startsWith(">") ? "text-emerald-200" : ""}>
+                {text}
               </span>
             </div>
           ))}
