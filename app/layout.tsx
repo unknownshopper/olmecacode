@@ -15,6 +15,66 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "OLMECA CODE",
   description: "Software operativo y sistemas IT para organizaciones en entornos críticos.",
+  metadataBase: new URL("https://olmecacode.pages.dev"),
+  applicationName: "OLMECA CODE",
+  referrer: "origin-when-cross-origin",
+  keywords: [
+    "software operativo",
+    "sistemas IT",
+    "inventarios vivos",
+    "trazabilidad",
+    "auditoría",
+    "integraciones",
+    "API",
+    "automatización",
+    "oil & gas",
+    "sector petrolero",
+    "MRO",
+    "CMMS",
+  ],
+  authors: [{ name: "OLMECA CODE" }],
+  creator: "OLMECA CODE",
+  publisher: "OLMECA CODE",
+  category: "technology",
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  openGraph: {
+    title: "OLMECA CODE",
+    description: "Software operativo y sistemas IT para organizaciones en entornos críticos.",
+    url: "/",
+    siteName: "OLMECA CODE",
+    locale: "es_MX",
+    type: "website",
+    images: [
+      {
+        url: "/brand/logo-color.png",
+        width: 1200,
+        height: 630,
+        alt: "OLMECA CODE",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "OLMECA CODE",
+    description: "Software operativo y sistemas IT para organizaciones en entornos críticos.",
+    images: ["/brand/logo-color.png"],
+  },
+  other: {
+    "format-detection": "telephone=no",
+  },
 };
 
 export default function RootLayout({
@@ -22,8 +82,48 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const baseUrl = "https://olmecacode.pages.dev";
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${baseUrl}/#organization`,
+        name: "OLMECA CODE",
+        url: baseUrl,
+        logo: `${baseUrl}/brand/logo-color.png`,
+        sameAs: [],
+        contactPoint: [
+          {
+            "@type": "ContactPoint",
+            contactType: "sales",
+            email: "the@unknownshoppers.com",
+            telephone: "+52 1 993 217 1855",
+            availableLanguage: ["es"],
+          },
+        ],
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${baseUrl}/#website`,
+        url: baseUrl,
+        name: "OLMECA CODE",
+        publisher: {
+          "@id": `${baseUrl}/#organization`,
+        },
+        inLanguage: "es-MX",
+      },
+    ],
+  };
+
   return (
     <html lang="es" className="dark">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

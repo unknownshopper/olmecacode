@@ -1107,7 +1107,7 @@ export default function CinematicLanding() {
               <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-black to-transparent" />
               <div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-black to-transparent" />
               <div className="flex gap-3 py-5">
-                <div className="flex min-w-full shrink-0 animate-[olmeca_marquee_18s_linear_infinite] gap-3 px-6">
+                <div className="olmeca-marquee flex min-w-full shrink-0 gap-3 px-6">
                   {[
                     "TypeScript",
                     "JavaScript",
@@ -1128,7 +1128,7 @@ export default function CinematicLanding() {
                     </span>
                   ))}
                 </div>
-                <div className="flex min-w-full shrink-0 animate-[olmeca_marquee_18s_linear_infinite] gap-3 px-6">
+                <div className="olmeca-marquee flex min-w-full shrink-0 gap-3 px-6">
                   {[
                     "TypeScript",
                     "JavaScript",
@@ -1162,6 +1162,11 @@ export default function CinematicLanding() {
             100% {
               transform: translateX(-100%);
             }
+          }
+
+          .olmeca-marquee {
+            animation: olmeca_marquee 18s linear infinite;
+            will-change: transform;
           }
         `}</style>
 
