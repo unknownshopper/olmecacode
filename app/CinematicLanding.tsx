@@ -853,18 +853,18 @@ export default function CinematicLanding() {
           mixBlendMode: "screen",
         }}
       />
-      <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
+      <header className="mx-auto flex w-full max-w-6xl items-center justify-between rounded-3xl border border-emerald-300/20 bg-gradient-to-r from-emerald-500/25 via-emerald-400/15 to-cyan-300/10 px-6 py-6 shadow-[0_0_0_1px_rgba(16,185,129,0.10),0_24px_80px_-24px_rgba(16,185,129,0.35)] backdrop-blur">
         <div className="flex items-center gap-3">
-          <Image
-            src="/brand/logo-mono.png"
-            alt="OLMECA CODE"
-            width={36}
-            height={36}
-            priority
-          />
-          <span className="text-sm font-semibold tracking-[0.22em] text-zinc-200">
-            OLMECA CODE
-          </span>
+          <div className="rounded-3xl border border-white/10 bg-white/10 p-3 backdrop-blur">
+            <Image
+              src="/brand/logo-mono.png"
+              alt="OLMECA CODE"
+              width={132}
+              height={132}
+              priority
+              className="h-16 w-16 md:h-32 md:w-32"
+            />
+          </div>
         </div>
 
         <nav className="hidden items-center gap-8 text-sm text-zinc-300 md:flex">
