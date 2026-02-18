@@ -23,6 +23,7 @@ function TerminalDemo() {
   );
 
   const [count, setCount] = useState(1);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let i = 1;
@@ -34,6 +35,12 @@ function TerminalDemo() {
 
     return () => window.clearInterval(id);
   }, [lines.length]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [count]);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/40">
@@ -50,7 +57,10 @@ function TerminalDemo() {
       </div>
 
       <div className="px-4 py-4">
-        <pre className="text-xs leading-6 text-zinc-200">
+        <div
+          ref={scrollRef}
+          className="h-44 overflow-y-auto font-mono text-xs leading-6 text-zinc-200"
+        >
           {lines.slice(0, count).map((l) => (
             <div key={l} className="whitespace-pre-wrap">
               <span className={l.startsWith(">") ? "text-emerald-200" : ""}>
@@ -62,7 +72,7 @@ function TerminalDemo() {
             <span className="text-zinc-300">$</span>
             <span className="ml-2 inline-block h-4 w-2 translate-y-[2px] bg-zinc-200/70" />
           </div>
-        </pre>
+        </div>
       </div>
     </div>
   );
