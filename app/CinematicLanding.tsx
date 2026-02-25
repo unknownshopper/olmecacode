@@ -439,18 +439,26 @@ export default function CinematicLanding() {
         if (kpis.length > 0) {
           ScrollTrigger.create({
             trigger: cap,
-            start: "top 70%",
+            start: "top 35%",
             once: true,
             onEnter: () => {
-              kpis.forEach((el) => {
+              kpis.forEach((el, idx) => {
                 const toRaw = el.getAttribute("data-kpi-to") ?? "0";
                 const to = Number(toRaw);
                 const isFloat = toRaw.includes(".");
                 const state = { value: 0 };
 
+                if (!Number.isFinite(to)) {
+                  el.textContent = toRaw;
+                  return;
+                }
+
+                el.textContent = isFloat ? "0.0" : "0";
+
                 gsap.to(state, {
                   value: to,
-                  duration: 1.1,
+                  duration: 4.6,
+                  delay: 0.3 + idx * 0.55,
                   ease: "power2.out",
                   onUpdate: () => {
                     el.textContent = isFloat
@@ -736,33 +744,33 @@ export default function CinematicLanding() {
           const modules = [
             {
               title: "Captura en campo",
-              body: "Registro offline/online con evidencia. Menos fricción, más trazabilidad.",
-              meta: "Input: móvil · Output: evento auditado",
+              body: "Registro offline/online con evidencia. Fotos/firmas/códigos. Sincroniza por lotes y conserva historial por turno.",
+              meta: "Input: móvil · Output: evento auditado · Latencia: baja",
             },
             {
               title: "Inventario vivo",
-              body: "Deltas continuos, historial de cambios y snapshots por turno/ubicación.",
-              meta: "Modo: incremental · Señal: estable",
+              body: "Deltas continuos, historial de cambios y snapshots por turno/ubicación. Conteos, traspasos y discrepancias con responsables.",
+              meta: "Modo: incremental · Conciliación: asistida · Señal: estable",
             },
             {
               title: "Auditoría",
-              body: "Quién hizo qué, cuándo y por qué. Evidencias listas para cumplimiento.",
-              meta: "Trail: firmado · Retención: configurable",
+              body: "Quién hizo qué, cuándo y por qué. Evidencias trazables y reportables. Búsqueda por folio/ubicación/usuario.",
+              meta: "Trail: firmado · Retención: configurable · Export: on-demand",
             },
             {
               title: "Integraciones",
-              body: "ERP/CMMS/BI: sincronización por API/ETL, con reglas y monitoreo.",
-              meta: "Sync: programado · Alertas: activas",
+              body: "ERP/CMMS/BI: sincronización por API/ETL con reglas y validaciones. Observabilidad del flujo y reintentos controlados.",
+              meta: "Sync: programado · Retries: seguros · Alertas: activas",
             },
             {
               title: "Reportes",
-              body: "Cierres de turno, discrepancias y KPIs operativos en minutos, no días.",
-              meta: "Export: PDF/CSV · BI: listo",
+              body: "Cierres de turno, discrepancias y KPIs operativos en minutos, no días. Plantillas por sitio y comparativos por periodo.",
+              meta: "Export: PDF/CSV · BI: listo · Drilldown: por evento",
             },
             {
               title: "Roles & permisos",
-              body: "Aprobaciones por rol, control de acceso y segregación de funciones.",
-              meta: "SSO: opcional · Policy: por sitio",
+              body: "Aprobaciones por rol, control de acceso y segregación de funciones. Flujos por política y registro de decisiones.",
+              meta: "SSO: opcional · Policy: por sitio · SoD: aplicada",
             },
           ];
 
@@ -838,7 +846,7 @@ export default function CinematicLanding() {
           };
 
           const moduleTl = gsap.timeline({ paused: true, repeat: -1 });
-          const stepDuration = 1.1;
+          const stepDuration = 2.4;
 
           moduleItems.forEach((_, i) => {
             moduleTl.add(() => setActive(i)).to({}, { duration: stepDuration });
@@ -1328,36 +1336,7 @@ export default function CinematicLanding() {
           </div>
 
           <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div
-              data-reveal
-              data-parallax="up"
-              className="rounded-3xl border border-white/10 bg-white/5 p-6 transition-transform duration-300 hover:-translate-y-1"
-            >
-              <h3 className="text-lg font-semibold text-zinc-50">Inventarios vivos</h3>
-              <p className="mt-2 text-sm leading-7 text-zinc-300">
-                Trazabilidad, control de cambios, auditoría y visibilidad operativa en tiempo real.
-              </p>
-            </div>
-            <div
-              data-reveal
-              data-parallax="down"
-              className="rounded-3xl border border-white/10 bg-white/5 p-6 transition-transform duration-300 hover:-translate-y-1"
-            >
-              <h3 className="text-lg font-semibold text-zinc-50">Sistemas IT</h3>
-              <p className="mt-2 text-sm leading-7 text-zinc-300">
-                Desarrollo web, APIs, integraciones, automatización de flujos y herramientas internas.
-              </p>
-            </div>
-            <div
-              data-reveal
-              data-parallax="up"
-              className="rounded-3xl border border-white/10 bg-white/5 p-6 transition-transform duration-300 hover:-translate-y-1"
-            >
-              <h3 className="text-lg font-semibold text-zinc-50">Infraestructura y calidad</h3>
-              <p className="mt-2 text-sm leading-7 text-zinc-300">
-                Observabilidad, seguridad básica, CI/CD y performance para nivel enterprise.
-              </p>
-            </div>
+            <div className="hidden md:block" />
           </div>
 
           <div data-reveal className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-12">
@@ -1398,8 +1377,8 @@ export default function CinematicLanding() {
                 data-module-pulse
                 className="pointer-events-none absolute -inset-6 rounded-3xl bg-gradient-to-r from-emerald-300/10 via-cyan-200/10 to-transparent opacity-0 blur-2xl"
               />
-              <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
-                <div data-module-detail>
+              <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/20 p-6">
+                <div data-module-detail className="min-h-[172px]">
                   <p data-module-detail-title className="text-lg font-semibold text-zinc-50">
                     Captura en campo
                   </p>
@@ -1439,8 +1418,8 @@ export default function CinematicLanding() {
               </p>
             </div>
             <div className="relative">
-              <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-black to-transparent" />
-              <div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-black to-transparent" />
+              <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-emerald-950/40 to-transparent" />
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-emerald-950/40 to-transparent" />
               <div className="flex gap-3 py-5">
                 <div className="olmeca-marquee flex min-w-full shrink-0 gap-3 px-6">
                   {[
@@ -1457,7 +1436,7 @@ export default function CinematicLanding() {
                   ].map((label) => (
                     <span
                       key={label}
-                      className="whitespace-nowrap rounded-full border border-white/10 bg-black/30 px-4 py-2 text-xs font-medium tracking-[0.18em] text-zinc-300"
+                      className="whitespace-nowrap rounded-full border border-emerald-200/20 bg-emerald-300/10 px-4 py-2 text-xs font-medium tracking-[0.18em] text-emerald-50/90"
                     >
                       {label}
                     </span>
@@ -1478,7 +1457,7 @@ export default function CinematicLanding() {
                   ].map((label) => (
                     <span
                       key={`dup-${label}`}
-                      className="whitespace-nowrap rounded-full border border-white/10 bg-black/30 px-4 py-2 text-xs font-medium tracking-[0.18em] text-zinc-300"
+                      className="whitespace-nowrap rounded-full border border-emerald-200/20 bg-emerald-300/10 px-4 py-2 text-xs font-medium tracking-[0.18em] text-emerald-50/90"
                     >
                       {label}
                     </span>
@@ -1546,7 +1525,7 @@ export default function CinematicLanding() {
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                     <p className="text-xs text-zinc-400">Latencia sync</p>
                     <p className="mt-2 text-2xl font-semibold text-zinc-50">
-                      <span data-kpi-value data-kpi-to="34">
+                      <span className="text-emerald-200" data-kpi-value data-kpi-to="34">
                         34
                       </span>
                       <span className="text-base font-medium text-zinc-400">ms</span>
@@ -1555,7 +1534,7 @@ export default function CinematicLanding() {
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                     <p className="text-xs text-zinc-400">Uptime</p>
                     <p className="mt-2 text-2xl font-semibold text-zinc-50">
-                      <span data-kpi-value data-kpi-to="99.9">
+                      <span className="text-emerald-200" data-kpi-value data-kpi-to="99.9">
                         99.9
                       </span>
                       <span className="text-base font-medium text-zinc-400">%</span>
@@ -1564,7 +1543,7 @@ export default function CinematicLanding() {
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                     <p className="text-xs text-zinc-400">Eventos auditados</p>
                     <p className="mt-2 text-2xl font-semibold text-zinc-50">
-                      <span data-kpi-value data-kpi-to="9670">
+                      <span className="text-emerald-200" data-kpi-value data-kpi-to="9670">
                         9670
                       </span>
                     </p>
@@ -1572,7 +1551,7 @@ export default function CinematicLanding() {
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                     <p className="text-xs text-zinc-400">Alertas resueltas</p>
                     <p className="mt-2 text-2xl font-semibold text-zinc-50">
-                      <span data-kpi-value data-kpi-to="128">
+                      <span className="text-emerald-200" data-kpi-value data-kpi-to="128">
                         128
                       </span>
                     </p>
@@ -1580,7 +1559,7 @@ export default function CinematicLanding() {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-8">
               <div
                 data-reveal
                 data-parallax="down"
@@ -1671,6 +1650,44 @@ export default function CinematicLanding() {
                     <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-zinc-300">
                       Reportes
                     </span>
+                  </div>
+
+                  <div
+                    data-workflow-detail
+                    className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-5"
+                  >
+                    <div className="flex items-start justify-between gap-6">
+                      <div className="min-w-0">
+                        <p
+                          data-workflow-detail-title
+                          className="text-sm font-semibold text-zinc-50"
+                        >
+                          Supervisor de turno
+                        </p>
+                        <p
+                          data-workflow-detail-body
+                          className="mt-1 text-sm leading-7 text-zinc-300"
+                        >
+                          Checklist de arranque + sincronización completa. Se valida acceso, ubicaciones y
+                          catálogo MRO.
+                        </p>
+                        <p
+                          data-workflow-detail-meta
+                          className="mt-3 text-xs font-medium tracking-[0.14em] text-zinc-400"
+                        >
+                          Responsable: Operaciones · Evidencia: Bitácora
+                        </p>
+                      </div>
+                      <div className="hidden shrink-0 md:block">
+                        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-zinc-300">
+                          Señal
+                          <div className="mt-2 h-2 w-24 rounded-full bg-white/5">
+                            <div className="h-2 w-[78%] rounded-full bg-gradient-to-r from-emerald-300 to-cyan-200" />
+                          </div>
+                          <p className="mt-2 text-[11px] text-zinc-400">stream: estable</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1813,43 +1830,6 @@ export default function CinematicLanding() {
                     </div>
                   </div>
 
-                  <div
-                    data-workflow-detail
-                    className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-5"
-                  >
-                    <div className="flex items-start justify-between gap-6">
-                      <div className="min-w-0">
-                        <p
-                          data-workflow-detail-title
-                          className="text-sm font-semibold text-zinc-50"
-                        >
-                          Supervisor de turno
-                        </p>
-                        <p
-                          data-workflow-detail-body
-                          className="mt-1 text-sm leading-7 text-zinc-300"
-                        >
-                          Checklist de arranque + sincronización completa. Se valida acceso, ubicaciones y
-                          catálogo MRO.
-                        </p>
-                        <p
-                          data-workflow-detail-meta
-                          className="mt-3 text-xs font-medium tracking-[0.14em] text-zinc-400"
-                        >
-                          Responsable: Operaciones · Evidencia: Bitácora
-                        </p>
-                      </div>
-                      <div className="hidden shrink-0 md:block">
-                        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-zinc-300">
-                          Señal
-                          <div className="mt-2 h-2 w-24 rounded-full bg-white/5">
-                            <div className="h-2 w-[78%] rounded-full bg-gradient-to-r from-emerald-300 to-cyan-200" />
-                          </div>
-                          <p className="mt-2 text-[11px] text-zinc-400">stream: estable</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>

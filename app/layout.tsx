@@ -13,11 +13,19 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OLMECA CODE",
+  title: {
+    default: "OLMECA CODE",
+    template: "%s · OLMECA CODE",
+  },
   description: "Software operativo y sistemas IT para organizaciones en entornos críticos.",
   metadataBase: new URL("https://olmecacode.pages.dev"),
   applicationName: "OLMECA CODE",
   referrer: "origin-when-cross-origin",
+  formatDetection: {
+    telephone: false,
+    address: false,
+    email: false,
+  },
   keywords: [
     "software operativo",
     "sistemas IT",
@@ -38,6 +46,14 @@ export const metadata: Metadata = {
   category: "technology",
   alternates: {
     canonical: "/",
+    types: {
+      "application/xml": [{ url: "/sitemap.xml" }],
+      "text/plain": [{ url: "/robots.txt" }],
+    },
+  },
+  icons: {
+    icon: "/brand/logo-mono.png",
+    apple: "/brand/logo-color.png",
   },
   robots: {
     index: true,
@@ -73,7 +89,7 @@ export const metadata: Metadata = {
     images: ["/brand/logo-color.png"],
   },
   other: {
-    "format-detection": "telephone=no",
+    "theme-color": "#000000",
   },
 };
 

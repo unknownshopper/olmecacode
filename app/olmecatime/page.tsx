@@ -23,6 +23,34 @@ type EventItem = {
   scope: "regional" | "nacional" | "internacional";
 };
 
+function mixcloudEmbed(
+  url: string,
+  opts?: { autoplay?: boolean; cacheBust?: string; hideCover?: boolean },
+) {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.includes("mixcloud.com")) return url;
+
+    const feed = encodeURIComponent(u.pathname.endsWith("/") ? u.pathname : `${u.pathname}/`);
+    const params = new URLSearchParams();
+    params.set("feed", feed);
+    params.set("light", "1");
+    if (opts?.hideCover) params.set("hide_cover", "1");
+    if (opts?.autoplay) params.set("autoplay", "1");
+    if (opts?.cacheBust) params.set("t", opts.cacheBust);
+    return `https://player-widget.mixcloud.com/widget/iframe/?${params.toString()}`;
+  } catch {
+    return url;
+  }
+}
+
+type MixcloudOembed = {
+  image?: string;
+  thumbnail_url?: string;
+  title?: string;
+  author_name?: string;
+};
+
 function youtubeEmbed(url: string) {
   try {
     const u = new URL(url);
@@ -44,6 +72,112 @@ export default function OlmecaTimePage() {
   const router = useRouter();
   const videoAutoplayPausedRef = useRef(false);
   const [videoSlide, setVideoSlide] = useState(0);
+  const [mixSlide, setMixSlide] = useState(0);
+  const [activeMixUrl, setActiveMixUrl] = useState<string | null>(null);
+  const mixcloudUrls = useMemo(
+    () => [
+      "https://www.mixcloud.com/pirichingon/jan2026/",
+      "https://www.mixcloud.com/pirichingon/see-u-later/",
+      "https://www.mixcloud.com/pirichingon/portableset/",
+      "https://www.mixcloud.com/pirichingon/setwtf2k14/",
+      "https://www.mixcloud.com/pirichingon/electriq/",
+    ],
+    [],
+  );
+
+  const [mixcloudMeta, setMixcloudMeta] = useState<Record<string, MixcloudOembed>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const jsonp = (url: string) =>
+      new Promise<MixcloudOembed>((resolve) => {
+        const cb = `__olmecaMixcloudOembed_${Math.random().toString(16).slice(2)}`;
+        const script = document.createElement("script");
+        const timeoutId = window.setTimeout(() => {
+          try {
+            // @ts-ignore dynamic callback
+            delete (window as any)[cb];
+          } catch {
+            // ignore
+          }
+          script.remove();
+          resolve({});
+        }, 5000);
+
+        // @ts-ignore dynamic callback
+        (window as any)[cb] = (data: MixcloudOembed) => {
+          window.clearTimeout(timeoutId);
+          try {
+            // @ts-ignore dynamic callback
+            delete (window as any)[cb];
+          } catch {
+            // ignore
+          }
+          script.remove();
+          resolve(data ?? {});
+        };
+
+        script.src = `https://app.mixcloud.com/oembed/?format=json&url=${encodeURIComponent(url)}&callback=${cb}`;
+        script.async = true;
+        script.onerror = () => {
+          window.clearTimeout(timeoutId);
+          try {
+            // @ts-ignore dynamic callback
+            delete (window as any)[cb];
+          } catch {
+            // ignore
+          }
+          script.remove();
+          resolve({});
+        };
+        document.head.appendChild(script);
+      });
+
+    const fetchAll = async () => {
+      const entries = await Promise.all(
+        mixcloudUrls.map(async (u) => {
+          try {
+            const json = await jsonp(u);
+            return [u, json ?? {}] as const;
+          } catch {
+            return [u, {}] as const;
+          }
+        }),
+      );
+
+      if (cancelled) return;
+      setMixcloudMeta((prev) => {
+        const next = { ...prev };
+        for (const [u, meta] of entries) next[u] = meta;
+        return next;
+      });
+    };
+
+    void fetchAll();
+    return () => {
+      cancelled = true;
+    };
+  }, [mixcloudUrls]);
+
+  const mixSlides = useMemo(() => {
+    const size = 3;
+    const out: string[][] = [];
+    for (let i = 0; i < mixcloudUrls.length; i += size) out.push(mixcloudUrls.slice(i, i + size));
+    return out.length > 0 ? out : [mixcloudUrls];
+  }, [mixcloudUrls]);
+
+  useEffect(() => {
+    if (mixSlide > mixSlides.length - 1) setMixSlide(0);
+  }, [mixSlide, mixSlides.length]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setActiveMixUrl(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const videos = useMemo<VideoItem[]>(
     () => [
@@ -201,13 +335,123 @@ export default function OlmecaTimePage() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-6 py-10">
+      <main className="mx-auto w-full max-w-6xl px-6 pb-20 pt-10">
         <section>
-          <p className="text-xs font-semibold tracking-[0.26em] text-emerald-950/70">VIDEO FEED</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight">OlmecaTime</h1>
+          <p className="text-xs font-semibold tracking-[0.26em] text-emerald-950/70">FEED</p>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight md:text-4xl">OlmecaTime</h1>
           <p className="mt-3 max-w-2xl text-base leading-7 text-emerald-950/80">
             Una vista interna: confiabilidad, seguridad ética, operación real y señales útiles.
           </p>
+
+          <div className="mt-8 rounded-3xl border border-emerald-900/10 bg-white/30 p-4 backdrop-blur">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-emerald-950/70">Groove channel</p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMixSlide((prev) => (prev - 1 + mixSlides.length) % mixSlides.length)}
+                  className="rounded-full border border-emerald-900/15 bg-white/25 px-4 py-2 text-sm font-semibold text-emerald-950 transition-colors hover:bg-white/40"
+                >
+                  Prev
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMixSlide((prev) => (prev + 1) % mixSlides.length)}
+                  className="rounded-full border border-emerald-900/15 bg-white/25 px-4 py-2 text-sm font-semibold text-emerald-950 transition-colors hover:bg-white/40"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-hidden rounded-2xl border border-emerald-900/10 bg-white/20">
+              <div
+                className="flex transition-transform duration-700 ease-in-out"
+                style={{ transform: `translateX(-${mixSlide * 100}%)` }}
+              >
+                {mixSlides.map((slide, slideIdx) => (
+                  <div key={slideIdx} className="w-full shrink-0 p-4">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {slide.map((u, idx) => (
+                        <div
+                          key={`${u}-${idx}`}
+                          className="overflow-hidden rounded-2xl border border-emerald-900/10 bg-white/20"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setActiveMixUrl(u)}
+                            className="relative block w-full"
+                          >
+                            {mixcloudMeta[u]?.image || mixcloudMeta[u]?.thumbnail_url ? (
+                              <div className="relative aspect-[4/3] w-full overflow-hidden bg-black/10">
+                                <img
+                                  src={mixcloudMeta[u]?.image ?? mixcloudMeta[u]?.thumbnail_url}
+                                  alt={mixcloudMeta[u]?.title ?? `Mixcloud artwork ${slideIdx * 3 + idx + 1}`}
+                                  className="h-full w-full object-cover"
+                                  loading="lazy"
+                                />
+                              </div>
+                            ) : (
+                              <div className="aspect-[4/3] w-full bg-black/10" />
+                            )}
+                            <div className="pointer-events-none absolute inset-0 grid place-items-center">
+                              <div className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-black/30 backdrop-blur">
+                                <div className="h-0 w-0 translate-x-[2px] border-y-[9px] border-y-transparent border-l-[14px] border-l-white/80" />
+                              </div>
+                            </div>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {activeMixUrl ? (
+            <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4">
+              <button
+                type="button"
+                aria-label="Cerrar"
+                onClick={() => setActiveMixUrl(null)}
+                className="absolute inset-0 cursor-default"
+              />
+              <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl border border-emerald-900/20 bg-[#5ee9b5] shadow-[0_24px_90px_-30px_rgba(0,0,0,0.65)]">
+                <div className="flex items-center justify-between gap-3 border-b border-emerald-900/10 bg-white/25 px-5 py-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-emerald-950">
+                      {mixcloudMeta[activeMixUrl]?.title ?? "Mixcloud"}
+                    </p>
+                    {mixcloudMeta[activeMixUrl]?.author_name ? (
+                      <p className="truncate text-xs text-emerald-950/70">
+                        {mixcloudMeta[activeMixUrl]?.author_name}
+                      </p>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveMixUrl(null)}
+                    className="rounded-full border border-emerald-900/15 bg-white/25 px-4 py-2 text-sm font-semibold text-emerald-950 transition-colors hover:bg-white/40"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+                <div className="p-4">
+                  <div className="overflow-hidden rounded-2xl border border-emerald-900/10 bg-white/20">
+                    <iframe
+                      title="Mixcloud Player"
+                      width="100%"
+                      height="400"
+                      src={mixcloudEmbed(activeMixUrl, { autoplay: true })}
+                      allow="encrypted-media; fullscreen; autoplay;"
+                      loading="lazy"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-6 flex items-center justify-between gap-3">
             <p className="text-sm font-semibold text-emerald-950/70">Últimos clips</p>
