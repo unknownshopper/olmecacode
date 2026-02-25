@@ -1290,10 +1290,10 @@ export default function CinematicLanding() {
               </div>
             </div>
 
-            <div className="relative w-full self-stretch">
+            <div className="relative w-full min-h-[520px] md:min-h-0 md:self-stretch">
               <div
                 data-hero-card
-                className="absolute inset-x-0 bottom-0 top-12 flex flex-col rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur md:top-14"
+                className="relative mt-10 flex flex-col rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur md:absolute md:inset-x-0 md:bottom-0 md:top-14 md:mt-0"
               >
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium tracking-[0.22em] text-zinc-300">
