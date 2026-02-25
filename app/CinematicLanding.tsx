@@ -2,59 +2,249 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 function TerminalDemo() {
-  const lines = useMemo(
+  const baseLines = useMemo(
     () => [
-      "> node inventory-live.js",
-      "[olmeca] booting runtime...",
-      "[olmeca] connecting: assets-stream",
+      "> node olmeca-signal.js",
+      "[olmeca] boot: runtime ok",
+      "[olmeca] connect: events-bus · tls=on",
+      "[deploy] sistema: implementado · modulo=integraciones-api · v=2.4.1",
+      "[sec] control: agregado · signed_webhooks · policy=strict",
+      "[sec] alerta: seguridad · ip=18.102.44.203 · accion=blocked",
+      "[crm] lead:new · fuente=web · score=82",
+      "[agenda] cita: creada · 2026-02-24 19:00",
+      "[contacto] nuevo · empresa=Proveedor MRO · rol=operaciones",
+      "[erp] pedido: #10482 · status=aprobado",
+      "[erp] factura: #F-8841 · total=$98,200",
+      "[ventas] closed-won · etapa=final · monto=$98,200",
+      "[ops] alerta: stock_bajo · sku=MRO-1183 · umbral=4",
       "[olmeca] sync: ok · latency=34ms",
       "[olmeca] audit: enabled · signed events",
-      "[olmeca] ingest: +24 events",
       "[olmeca] normalize: ok",
-      "[olmeca] snapshot: warehouse-MRO",
-      "[olmeca] delta: +3 items · -1 item",
       "[olmeca] status: stable",
     ],
     [],
   );
 
-  const windowSize = 7;
-  const [count, setCount] = useState(1);
+  const windowSize = 10;
+  const bufferLimit = 60;
+  const [lines, setLines] = useState<string[]>(baseLines);
+  const [inputValue, setInputValue] = useState("");
+  const [inputFocused, setInputFocused] = useState(false);
+  const followTailRef = useRef(true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const stagedTimeoutsRef = useRef<number[]>([]);
+  const pausedRef = useRef(false);
+  const generatorTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
-    let i = 1;
-    const id = window.setInterval(() => {
-      i += 1;
-      if (i > lines.length) i = 1;
-      setCount(i);
-    }, 650);
+    const pick = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
+    const int = (min: number, max: number) =>
+      Math.floor(Math.random() * (max - min + 1)) + min;
+    const money = () => `$${int(12_000, 180_000).toLocaleString("es-MX")}`;
+    const id = (prefix: string) => `${prefix}-${int(1000, 9999)}`;
+    const pad2 = (n: number) => `${n}`.padStart(2, "0");
 
-    return () => window.clearInterval(id);
+    const companies = [
+      "Proveedor MRO",
+      "Operadora Campo Sur",
+      "Servicios Delta",
+      "Logística Istmo",
+      "Terminales del Golfo",
+      "Mantenimiento Jaguar",
+    ];
+    const sources = ["web", "whatsapp", "referido", "evento", "inbound"];
+    const modules = [
+      "inventarios-vivos",
+      "auditoria-signed-events",
+      "integraciones-api",
+      "reporting-kpis",
+      "alertas-operativas",
+      "seguridad-cero-trust",
+    ];
+    const securityControls = [
+      "2fa_enforced",
+      "ip_allowlist",
+      "signed_webhooks",
+      "audit_trail",
+      "rate_limit",
+      "siem_forwarding",
+    ];
+
+    const now = new Date();
+    const hh = now.getHours();
+    const mm = now.getMinutes();
+    const ts = () => `${pad2((hh + int(0, 2)) % 24)}:${pad2((mm + int(0, 50)) % 60)}`;
+
+    const makeLine = () => {
+      const kind = pick([
+        "deploy",
+        "sec",
+        "crm",
+        "agenda",
+        "contacto",
+        "erp",
+        "ventas",
+        "ops",
+        "olmeca",
+      ]);
+
+      if (kind === "deploy") {
+        return `[deploy] sistema: implementado · modulo=${pick(modules)} · v=${int(1, 3)}.${int(0, 9)}.${int(0, 9)}`;
+      }
+      if (kind === "sec") {
+        if (Math.random() < 0.5) {
+          return `[sec] control: agregado · ${pick(securityControls)} · policy=strict`;
+        }
+        return `[sec] alerta: seguridad · ip=${int(10, 99)}.${int(0, 255)}.${int(0, 255)}.${int(0, 255)} · accion=blocked`;
+      }
+      if (kind === "crm") return `[crm] lead:new · fuente=${pick(sources)} · score=${int(55, 99)}`;
+      if (kind === "agenda") return `[agenda] cita: creada · 2026-02-${pad2(int(10, 28))} ${ts()}`;
+      if (kind === "contacto") return `[contacto] nuevo · empresa=${pick(companies)} · rol=operaciones`;
+      if (kind === "erp") {
+        if (Math.random() < 0.55) return `[erp] pedido: #${int(10000, 19999)} · status=aprobado`;
+        return `[erp] factura: #${id("F")} · total=${money()}`;
+      }
+      if (kind === "ventas") return `[ventas] closed-won · etapa=final · monto=${money()}`;
+      if (kind === "ops") return `[ops] alerta: stock_bajo · sku=${id("MRO")} · umbral=${int(2, 10)}`;
+      return `[olmeca] sync: ok · latency=${int(18, 54)}ms`;
+    };
+
+    const burstSizes = [4, 2, 1, 3, 1, 1, 2];
+    const burstDelays = [900, 650, 420, 780, 380, 520, 700];
+    let burstIndex = 0;
+    let timeoutId: number | null = null;
+    let active = true;
+
+    const tick = () => {
+      if (!active) return;
+      if (pausedRef.current) return;
+
+      const step = burstSizes[burstIndex % burstSizes.length];
+      const delay = burstDelays[burstIndex % burstDelays.length];
+      burstIndex += 1;
+
+      const nextLines = Array.from({ length: step }, makeLine);
+      setLines((prev) => {
+        const merged = prev.concat(nextLines);
+        if (merged.length <= bufferLimit) return merged;
+        return merged.slice(merged.length - bufferLimit);
+      });
+
+      timeoutId = window.setTimeout(tick, delay);
+      generatorTimeoutRef.current = timeoutId;
+    };
+
+    timeoutId = window.setTimeout(tick, 650);
+    generatorTimeoutRef.current = timeoutId;
+
+    return () => {
+      active = false;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+    };
+  }, [bufferLimit]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (!followTailRef.current) return;
+    el.scrollTop = el.scrollHeight;
   }, [lines.length]);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [count]);
+
+    const onScroll = () => {
+      const threshold = 28;
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+      followTailRef.current = atBottom;
+    };
+
+    el.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
 
   const visibleLines = useMemo(() => {
-    const lastIndex = count - 1;
     const size = Math.min(windowSize, lines.length);
-    const start = lastIndex - (size - 1);
+    const start = Math.max(0, lines.length - size);
+    return lines.slice(start).map((text, i) => ({ idx: start + i, text }));
+  }, [lines, windowSize]);
 
-    return Array.from({ length: size }, (_, i) => {
-      let idx = start + i;
-      while (idx < 0) idx += lines.length;
-      idx = idx % lines.length;
-      return { idx, text: lines[idx] };
+  const toneForLine = (text: string) => {
+    const lower = text.toLowerCase();
+    if (text.startsWith("$ ")) return "text-zinc-100";
+    if (text.startsWith(">")) return "text-emerald-200";
+    if (lower.startsWith("[crm]")) return "text-cyan-200";
+    if (lower.startsWith("[erp]")) return "text-violet-200";
+    if (lower.startsWith("[agenda]")) return "text-amber-200";
+    if (lower.startsWith("[contacto]")) return "text-sky-200";
+    if (lower.startsWith("[ventas]")) return "text-emerald-200";
+    if (lower.startsWith("[deploy]")) return "text-emerald-100";
+    if (lower.startsWith("[sec]")) return "text-rose-200";
+    if (lower.startsWith("[ops]")) return "text-orange-200";
+    if (lower.includes("status=aprobado") || lower.includes("closed-won")) return "text-emerald-200";
+    if (lower.includes("error") || lower.includes("fail")) return "text-red-200";
+    if (lower.startsWith("[help]")) return "text-emerald-200";
+    return "text-zinc-200";
+  };
+
+  const pushLines = (next: string[]) => {
+    if (next.length === 0) return;
+    setLines((prev) => {
+      const merged = prev.concat(next);
+      if (merged.length <= bufferLimit) return merged;
+      return merged.slice(merged.length - bufferLimit);
     });
-  }, [count, lines, windowSize]);
+  };
+
+  const runCommand = (raw: string) => {
+    const cmd = raw.trim();
+    if (!cmd) return;
+
+    const normalized = cmd.toUpperCase();
+    const out: string[] = [`$ ${cmd}`];
+
+    if (normalized !== "OLMECATIME") {
+      out.push(`ERROR !! "${cmd}" es un comando no autorizado`);
+      pushLines(out);
+      return;
+    }
+
+    stagedTimeoutsRef.current.forEach((id) => window.clearTimeout(id));
+    stagedTimeoutsRef.current = [];
+    followTailRef.current = true;
+
+    pausedRef.current = true;
+    if (generatorTimeoutRef.current !== null) {
+      window.clearTimeout(generatorTimeoutRef.current);
+      generatorTimeoutRef.current = null;
+    }
+
+    window.dispatchEvent(new Event("olmecatime"));
+
+    pushLines(out);
+
+    const staged = [
+      "[olmeca] handshake: ok · tls=on",
+      "[olmeca] acceso concedido · sesión verificada",
+      "[olmeca] scope: lectura · terminal demo",
+      "[olmeca] hint: usa el menú superior o escribe en sitio: contacto",
+    ];
+
+    staged.forEach((line, i) => {
+      const id = window.setTimeout(() => {
+        pushLines([line]);
+      }, 420 + i * 420);
+      stagedTimeoutsRef.current.push(id);
+    });
+  };
 
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/40">
@@ -71,22 +261,128 @@ function TerminalDemo() {
       </div>
 
       <div className="px-4 py-4">
-        <div
-          ref={scrollRef}
-          className="h-36 overflow-y-auto font-mono text-xs leading-6 text-zinc-200"
-        >
-          {visibleLines.map(({ idx, text }) => (
-            <div key={`${idx}-${text}`} className="whitespace-pre-wrap">
-              <span className={text.startsWith(">") ? "text-emerald-200" : ""}>
-                {text}
-              </span>
+        <div className="relative">
+          <div
+            ref={scrollRef}
+            className="h-64 overflow-y-auto pb-12 font-mono text-xs leading-6 text-zinc-200 md:h-80"
+            onMouseDown={() => inputRef.current?.focus()}
+          >
+            {visibleLines.map(({ idx, text }) => (
+              <div key={`${idx}-${text}`} className="whitespace-pre-wrap">
+                <span className={toneForLine(text)}>
+                  {text}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/70 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 border-t border-white/10 bg-black/60 px-0 py-2 backdrop-blur">
+            <div className="pointer-events-auto flex items-center gap-2 whitespace-pre-wrap px-0">
+              <span className="text-zinc-300">$</span>
+              <input
+                ref={inputRef}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const value = inputValue;
+                    setInputValue("");
+                    runCommand(value);
+                  }
+                }}
+                spellCheck={false}
+                className="min-w-0 flex-1 bg-transparent text-zinc-100 outline-none placeholder:text-zinc-500"
+                placeholder="Escribe un comando…"
+              />
+              <span
+                aria-hidden="true"
+                className={
+                  inputFocused
+                    ? "h-4 w-2 translate-y-[1px] bg-zinc-200/30"
+                    : "olmeca-blink h-4 w-2 translate-y-[1px] bg-zinc-200/70"
+                }
+              />
             </div>
-          ))}
-          <div className="whitespace-pre-wrap">
-            <span className="text-zinc-300">$</span>
-            <span className="ml-2 inline-block h-4 w-2 translate-y-[2px] bg-zinc-200/70" />
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function TerminalWordmark({ size = "lg" }: { size?: "lg" | "sm" }) {
+  const isSmall = size === "sm";
+
+  return (
+    <div className={isSmall ? "flex items-center gap-2" : "flex items-center gap-3"}>
+      <div
+        className={
+          isSmall
+            ? "rounded-xl border border-white/10 bg-white/10 px-2 py-1 backdrop-blur"
+            : "rounded-2xl border border-white/10 bg-white/10 px-3 py-2 backdrop-blur"
+        }
+      >
+        <svg
+          width={isSmall ? 130 : 240}
+          height={isSmall ? 24 : 40}
+          viewBox={isSmall ? "0 0 130 24" : "0 0 240 40"}
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          role="img"
+          aria-label="OLMECA CODE"
+        >
+          <defs>
+            <linearGradient id="olmeca_term" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="#34d399" stopOpacity="0.95" />
+              <stop offset="1" stopColor="#22d3ee" stopOpacity="0.95" />
+            </linearGradient>
+          </defs>
+          <text
+            x={isSmall ? 6 : 10}
+            y={isSmall ? 16 : 26}
+            fontSize={isSmall ? 12 : 18}
+            fontFamily="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace"
+            letterSpacing={isSmall ? 1.6 : 2.2}
+            fill="#e4e4e7"
+          >
+            {">_"}
+          </text>
+          <rect
+            x={isSmall ? 26 : 44}
+            y={isSmall ? 7 : 12}
+            width={isSmall ? 7 : 10}
+            height={isSmall ? 10 : 14}
+            rx={2}
+            fill="url(#olmeca_term)"
+            opacity="0.85"
+          />
+          <text
+            x={isSmall ? 42 : 66}
+            y={isSmall ? 16 : 26}
+            fontSize={isSmall ? 12 : 18}
+            fontFamily="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji"
+            fontWeight={800}
+            letterSpacing={isSmall ? 1.2 : 1.6}
+            fill="#fafafa"
+          >
+            OLMECA
+          </text>
+          <text
+            x={isSmall ? 98 : 160}
+            y={isSmall ? 16 : 26}
+            fontSize={isSmall ? 12 : 18}
+            fontFamily="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji"
+            fontWeight={700}
+            letterSpacing={isSmall ? 1.2 : 1.6}
+            fill="url(#olmeca_term)"
+          >
+            CODE
+          </text>
+        </svg>
       </div>
     </div>
   );
@@ -101,6 +397,13 @@ export default function CinematicLanding() {
   const workflowRef = useRef<HTMLElement | null>(null);
   const processRef = useRef<HTMLElement | null>(null);
   const contactRef = useRef<HTMLElement | null>(null);
+  const router = useRouter();
+
+  const [olmecaTimeActive, setOlmecaTimeActive] = useState(false);
+  const [olmecaOverlayOn, setOlmecaOverlayOn] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem("olmecatime:return") === "1";
+  });
 
   const sectionRefs = useMemo(
     () => [servicesRef, capabilitiesRef, processRef, contactRef],
@@ -842,8 +1145,50 @@ export default function CinematicLanding() {
     return () => ctx.revert();
   }, [sectionRefs]);
 
+  useEffect(() => {
+    const onOlmecaTime = () => {
+      setOlmecaTimeActive(true);
+      setOlmecaOverlayOn(true);
+      gsap.globalTimeline.pause();
+      ScrollTrigger.getAll().forEach((st) => st.disable(false));
+
+      window.setTimeout(() => {
+        router.push("/olmecatime");
+      }, 1200);
+    };
+
+    window.addEventListener("olmecatime", onOlmecaTime);
+    return () => window.removeEventListener("olmecatime", onOlmecaTime);
+  }, [router]);
+
+  useEffect(() => {
+    const flag = sessionStorage.getItem("olmecatime:return");
+    if (flag !== "1") return;
+
+    sessionStorage.removeItem("olmecatime:return");
+    setOlmecaOverlayOn(true);
+    window.setTimeout(() => {
+      setOlmecaOverlayOn(false);
+    }, 240);
+
+    const resumeId = window.setTimeout(() => {
+      gsap.globalTimeline.resume();
+      ScrollTrigger.getAll().forEach((st) => st.enable(false));
+    }, 2400);
+
+    return () => window.clearTimeout(resumeId);
+  }, []);
+
   return (
-    <div ref={rootRef} className="min-h-screen bg-black text-zinc-100">
+    <div
+      ref={rootRef}
+      className={`min-h-screen bg-black text-zinc-100${olmecaTimeActive ? " olmeca-paused" : ""}`}
+    >
+      <div
+        className={`pointer-events-none fixed inset-0 z-50 bg-[#5ee9b5] transition-opacity duration-[2400ms] ease-out${
+          olmecaOverlayOn ? " opacity-100" : " opacity-0"
+        }`}
+      />
       <div
         ref={sceneOverlayRef}
         className="pointer-events-none fixed inset-0 -z-0 opacity-0"
@@ -855,16 +1200,7 @@ export default function CinematicLanding() {
       />
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between rounded-3xl border border-emerald-300/20 bg-gradient-to-r from-emerald-500/25 via-emerald-400/15 to-cyan-300/10 px-6 py-6 shadow-[0_0_0_1px_rgba(16,185,129,0.10),0_24px_80px_-24px_rgba(16,185,129,0.35)] backdrop-blur">
         <div className="flex items-center gap-3">
-          <div className="rounded-3xl border border-white/10 bg-white/10 p-3 backdrop-blur">
-            <Image
-              src="/brand/logo-mono.png"
-              alt="OLMECA CODE"
-              width={132}
-              height={132}
-              priority
-              className="h-16 w-16 md:h-32 md:w-32"
-            />
-          </div>
+          <TerminalWordmark size="lg" />
         </div>
 
         <nav className="hidden items-center gap-8 text-sm text-zinc-300 md:flex">
@@ -954,11 +1290,10 @@ export default function CinematicLanding() {
               </div>
             </div>
 
-            <div className="relative flex items-center justify-center">
-              <div className="absolute inset-0 rounded-3xl bg-gradient-to-b from-white/10 to-transparent" />
+            <div className="relative w-full self-stretch">
               <div
                 data-hero-card
-                className="relative w-full rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur"
+                className="absolute inset-x-0 bottom-0 top-12 flex flex-col rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur md:top-14"
               >
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium tracking-[0.22em] text-zinc-300">
@@ -1164,9 +1499,28 @@ export default function CinematicLanding() {
             }
           }
 
+          @keyframes olmeca_blink {
+            0%,
+            49% {
+              opacity: 1;
+            }
+            50%,
+            100% {
+              opacity: 0;
+            }
+          }
+
           .olmeca-marquee {
             animation: olmeca_marquee 18s linear infinite;
             will-change: transform;
+          }
+
+          .olmeca-paused .olmeca-marquee {
+            animation-play-state: paused;
+          }
+
+          .olmeca-blink {
+            animation: olmeca_blink 1.05s steps(1, end) infinite;
           }
         `}</style>
 
@@ -1629,14 +1983,7 @@ export default function CinematicLanding() {
 
             <div data-reveal className="mt-10 flex items-center justify-between border-t border-white/10 pt-6">
               <div className="flex items-center gap-3">
-                <div className="rounded-xl border border-white/10 bg-white/10 p-2">
-                  <Image
-                    src="/brand/logo-mono.png"
-                    alt="OLMECA CODE"
-                    width={28}
-                    height={28}
-                  />
-                </div>
+                <TerminalWordmark size="sm" />
               </div>
               <p className="text-xs text-zinc-500">© {new Date().getFullYear()} OLMECA CODE</p>
             </div>
