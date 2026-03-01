@@ -398,6 +398,15 @@ export default function CinematicLanding() {
   const processRef = useRef<HTMLElement | null>(null);
   const contactRef = useRef<HTMLElement | null>(null);
   const router = useRouter();
+  const [activeNav, setActiveNav] = useState(0);
+  const [heroTab, setHeroTab] = useState<"software" | "it" | "criticos">("software");
+
+  const scrollToSection = (id: string, el: HTMLElement | null) => {
+    if (!el) return;
+    const pin = ScrollTrigger.getById(`pin-${id}`);
+    const target = typeof pin?.start === "number" ? pin.start + 1 : window.scrollY + el.getBoundingClientRect().top;
+    window.scrollTo({ top: Math.max(0, target - 24), behavior: "smooth" });
+  };
 
   const [olmecaTimeActive, setOlmecaTimeActive] = useState(false);
   const [olmecaOverlayOn, setOlmecaOverlayOn] = useState(() => {
@@ -409,6 +418,53 @@ export default function CinematicLanding() {
     () => [servicesRef, capabilitiesRef, processRef, contactRef],
     [],
   );
+
+  const navSections = useMemo(
+    () => [
+      { id: "inicio", label: "Inicio", ref: heroRef },
+      { id: "servicios", label: "Servicios", ref: servicesRef },
+      { id: "capacidades", label: "Capacidades", ref: capabilitiesRef },
+      { id: "workflow", label: "OLMECA Ops", ref: workflowRef },
+      { id: "proceso", label: "Proceso", ref: processRef },
+      { id: "contacto", label: "Contacto", ref: contactRef },
+    ],
+    [],
+  );
+
+  const heroCopy = useMemo(() => {
+    if (heroTab === "it") {
+      return {
+        kicker: "SISTEMAS IT",
+        title: {
+          line1: "Sistemas IT",
+          line2: "Integración real.",
+          line3: "Operación sin fricción.",
+        },
+        body: "Integramos tu stack y construimos sistemas IT a medida: APIs, ETLs, seguridad, monitoreo y control operativo con trazabilidad.",
+      };
+    }
+    if (heroTab === "criticos") {
+      return {
+        kicker: "ENTORNOS CRÍTICOS",
+        title: {
+          line1: "Entornos críticos.",
+          line2: "Seguridad & observabilidad.",
+          line3: "Continuidad sin drama.",
+        },
+        body: "Diseñamos para alta disponibilidad: auditoría, controles, alertas, resiliencia y monitoreo. Lo importante se mantiene estable.",
+      };
+    }
+
+    return {
+      kicker: "SOFTWARE OPERATIVO",
+      title: {
+        line1: "Tecnología útil.",
+        line2: "Diseño brutal.",
+        line3: "Ejecución sin drama.",
+      },
+      body: "Construimos software para operaciones reales: trazabilidad, control, integraciones e infraestructura. Desde inventarios vivos hasta sistemas IT a la medida.",
+    };
+  }, [heroTab]);
 
   useEffect(() => {
     if (!rootRef.current) return;
@@ -437,40 +493,209 @@ export default function CinematicLanding() {
         ) as HTMLElement[];
 
         if (kpis.length > 0) {
+          let kpiIntervalFast: number | null = null;
+          let kpiTimeoutEvents: number | null = null;
+          let kpiTimeoutAlerts: number | null = null;
+          const kpiStates = new Map<HTMLElement, { value: number }>();
+
+          const formatKpi = (toRaw: string, v: number) => {
+            const isFloat = toRaw.includes(".");
+            return isFloat ? v.toFixed(1) : Math.round(v).toString();
+          };
+
+          const kpiLabelFor = (el: HTMLElement) => {
+            const card = el.closest(".rounded-2xl") as HTMLElement | null;
+            const labelEl = card?.querySelector("p.text-xs") as HTMLElement | null;
+            return (labelEl?.textContent ?? "").trim().toLowerCase();
+          };
+
+          const baseFor = (el: HTMLElement) => {
+            const toRaw = el.getAttribute("data-kpi-to") ?? "0";
+            const to = Number(toRaw);
+            return { toRaw, to, label: kpiLabelFor(el) };
+          };
+
+          const jitteredValue = (toRaw: string, base: number, label: string) => {
+            const isFloat = toRaw.includes(".");
+            const abs = Math.abs(base);
+
+            if (label.includes("uptime")) {
+              const min = 92;
+              const max = 98;
+              const wiggle = 0.35;
+              const v = base + (Math.random() * 2 - 1) * wiggle;
+              return Math.min(max, Math.max(min, v));
+            }
+
+            if (isFloat) {
+              const wiggle = Math.max(0.1, Math.min(0.6, abs * 0.008));
+              const v = base + (Math.random() * 2 - 1) * wiggle;
+              return Math.max(0, v);
+            }
+
+            const wiggle = Math.max(2, Math.min(24, abs * 0.04));
+            const v = base + (Math.random() * 2 - 1) * wiggle;
+            return Math.max(0, isFloat ? v : Math.round(v));
+          };
+
+          const startLive = () => {
+            if (
+              kpiIntervalFast != null ||
+              kpiTimeoutEvents != null ||
+              kpiTimeoutAlerts != null
+            ) {
+              return;
+            }
+
+            kpiIntervalFast = window.setInterval(() => {
+              kpis.forEach((el) => {
+                const { toRaw, to, label } = baseFor(el);
+                if (!Number.isFinite(to)) return;
+                if (label.includes("eventos auditados")) return;
+                if (label.includes("alertas resueltas")) return;
+
+                const state = kpiStates.get(el) ?? { value: to };
+                kpiStates.set(el, state);
+
+                const base = label.includes("uptime") ? state.value : to;
+                const next = jitteredValue(toRaw, base, label);
+                gsap.to(state, {
+                  value: next,
+                  duration: 0.85,
+                  ease: "power2.out",
+                  overwrite: true,
+                  onUpdate: () => {
+                    el.textContent = formatKpi(toRaw, state.value);
+                  },
+                });
+              });
+            }, 1100);
+
+            const tickEvents = () => {
+              const el = kpis.find((node) => kpiLabelFor(node).includes("eventos auditados"));
+              if (el) {
+                const { toRaw, to } = baseFor(el);
+                if (Number.isFinite(to)) {
+                  const state = kpiStates.get(el) ?? { value: to };
+                  kpiStates.set(el, state);
+                  const next = Math.max(state.value, to) + 1;
+                  gsap.to(state, {
+                    value: next,
+                    duration: 0.75,
+                    ease: "power2.out",
+                    overwrite: true,
+                    onUpdate: () => {
+                      el.textContent = formatKpi(toRaw, state.value);
+                    },
+                  });
+                }
+              }
+
+              kpiTimeoutEvents = window.setTimeout(tickEvents, 4000);
+            };
+
+            const tickAlerts = () => {
+              const el = kpis.find((node) => kpiLabelFor(node).includes("alertas resueltas"));
+              if (el) {
+                const { toRaw, to } = baseFor(el);
+                if (Number.isFinite(to)) {
+                  const state = kpiStates.get(el) ?? { value: to };
+                  kpiStates.set(el, state);
+                  const next = Math.max(state.value, to) + 1;
+                  gsap.to(state, {
+                    value: next,
+                    duration: 0.75,
+                    ease: "power2.out",
+                    overwrite: true,
+                    onUpdate: () => {
+                      el.textContent = formatKpi(toRaw, state.value);
+                    },
+                  });
+                }
+              }
+
+              const delay = 1000 + Math.round(Math.random() * 3000);
+              kpiTimeoutAlerts = window.setTimeout(tickAlerts, delay);
+            };
+
+            tickEvents();
+            tickAlerts();
+          };
+
+          const stopLive = () => {
+            if (kpiIntervalFast != null) {
+              window.clearInterval(kpiIntervalFast);
+              kpiIntervalFast = null;
+            }
+            if (kpiTimeoutEvents != null) {
+              window.clearTimeout(kpiTimeoutEvents);
+              kpiTimeoutEvents = null;
+            }
+            if (kpiTimeoutAlerts != null) {
+              window.clearTimeout(kpiTimeoutAlerts);
+              kpiTimeoutAlerts = null;
+            }
+          };
+
           ScrollTrigger.create({
             trigger: cap,
             start: "top 35%",
-            once: true,
+            end: "bottom 40%",
             onEnter: () => {
               kpis.forEach((el, idx) => {
-                const toRaw = el.getAttribute("data-kpi-to") ?? "0";
-                const to = Number(toRaw);
-                const isFloat = toRaw.includes(".");
-                const state = { value: 0 };
+                const { toRaw, to, label } = baseFor(el);
+                const state = kpiStates.get(el) ?? { value: 0 };
+                kpiStates.set(el, state);
 
                 if (!Number.isFinite(to)) {
                   el.textContent = toRaw;
                   return;
                 }
 
-                el.textContent = isFloat ? "0.0" : "0";
-
+                if (label.includes("uptime")) {
+                  el.textContent = formatKpi(toRaw, 92);
+                  state.value = 92;
+                } else {
+                  el.textContent = formatKpi(toRaw, 0);
+                }
                 gsap.to(state, {
                   value: to,
-                  duration: 4.6,
-                  delay: 0.3 + idx * 0.55,
+                  duration: 2.6,
+                  delay: 0.15 + idx * 0.2,
                   ease: "power2.out",
+                  overwrite: true,
                   onUpdate: () => {
-                    el.textContent = isFloat
-                      ? state.value.toFixed(1)
-                      : Math.round(state.value).toString();
+                    el.textContent = formatKpi(toRaw, state.value);
+                  },
+                  onComplete: () => {
+                    if (idx === kpis.length - 1) startLive();
                   },
                 });
               });
             },
+            onEnterBack: () => startLive(),
+            onLeave: () => stopLive(),
+            onLeaveBack: () => stopLive(),
           });
         }
       }
+
+      navSections.forEach((s, idx) => {
+        if (!s.ref.current) return;
+        const isHero = s.ref.current === heroRef.current;
+        const isContact = s.ref.current === contactRef.current;
+        const pinned = !isHero && !isContact;
+
+        ScrollTrigger.create({
+          id: `nav-${s.id}`,
+          trigger: s.ref.current,
+          start: pinned ? "top top" : isHero ? "top top" : "top 55%",
+          end: pinned ? "+=55%" : isHero ? "+=120%" : "bottom bottom",
+          onToggle: (self) => {
+            if (self.isActive) setActiveNav(idx);
+          },
+        });
+      });
 
       const parallaxEls = Array.from(
         rootRef.current?.querySelectorAll("[data-parallax]") ?? [],
@@ -618,14 +843,14 @@ export default function CinematicLanding() {
 
       ScrollTrigger.matchMedia({
         "(min-width: 768px)": () => {
-          sectionRefs.forEach((ref) => {
-            if (!ref.current) return;
-            const section = ref.current;
-
-            if (section === contactRef.current) return;
+          navSections.forEach((s) => {
+            if (!s.ref.current) return;
+            if (s.ref.current === contactRef.current) return;
+            if (s.ref.current === heroRef.current) return;
 
             ScrollTrigger.create({
-              trigger: section,
+              id: `pin-${s.id}`,
+              trigger: s.ref.current,
               start: "top top",
               end: "+=55%",
               pin: true,
@@ -739,6 +964,24 @@ export default function CinematicLanding() {
         const modulePulse = services.querySelector(
           "[data-module-pulse]",
         ) as HTMLElement | null;
+        const moduleStreamBarThroughput = services.querySelector(
+          '[data-module-stream-bar="throughput"]',
+        ) as HTMLElement | null;
+        const moduleStreamBarCoverage = services.querySelector(
+          '[data-module-stream-bar="coverage"]',
+        ) as HTMLElement | null;
+        const moduleStreamBarLatency = services.querySelector(
+          '[data-module-stream-bar="latency"]',
+        ) as HTMLElement | null;
+        const moduleStreamValueThroughput = services.querySelector(
+          '[data-module-stream-value="throughput"]',
+        ) as HTMLElement | null;
+        const moduleStreamValueCoverage = services.querySelector(
+          '[data-module-stream-value="coverage"]',
+        ) as HTMLElement | null;
+        const moduleStreamValueLatency = services.querySelector(
+          '[data-module-stream-value="latency"]',
+        ) as HTMLElement | null;
 
         if (moduleItems.length > 0) {
           const modules = [
@@ -774,6 +1017,75 @@ export default function CinematicLanding() {
             },
           ];
 
+          const streamProfiles = [
+            {
+              throughput: 74,
+              coverage: 68,
+              latency: 32,
+              throughputLabel: "Eventos/min",
+              throughputValue: "2.4k",
+              coverageLabel: "Cobertura",
+              coverageValue: "68%",
+              latencyLabel: "Latencia",
+              latencyValue: "32ms",
+            },
+            {
+              throughput: 66,
+              coverage: 82,
+              latency: 38,
+              throughputLabel: "Deltas/min",
+              throughputValue: "1.1k",
+              coverageLabel: "Conciliación",
+              coverageValue: "82%",
+              latencyLabel: "Sinc.",
+              latencyValue: "38ms",
+            },
+            {
+              throughput: 58,
+              coverage: 90,
+              latency: 44,
+              throughputLabel: "Eventos/h",
+              throughputValue: "9.6k",
+              coverageLabel: "Integridad",
+              coverageValue: "90%",
+              latencyLabel: "Consulta",
+              latencyValue: "44ms",
+            },
+            {
+              throughput: 72,
+              coverage: 76,
+              latency: 51,
+              throughputLabel: "Requests/s",
+              throughputValue: "180",
+              coverageLabel: "Conectores",
+              coverageValue: "76%",
+              latencyLabel: "ETL",
+              latencyValue: "51ms",
+            },
+            {
+              throughput: 62,
+              coverage: 88,
+              latency: 36,
+              throughputLabel: "KPIs/min",
+              throughputValue: "420",
+              coverageLabel: "Disponibilidad",
+              coverageValue: "88%",
+              latencyLabel: "Render",
+              latencyValue: "36ms",
+            },
+            {
+              throughput: 70,
+              coverage: 84,
+              latency: 41,
+              throughputLabel: "Accesos/día",
+              throughputValue: "12k",
+              coverageLabel: "Cumplimiento",
+              coverageValue: "84%",
+              latencyLabel: "Autorización",
+              latencyValue: "41ms",
+            },
+          ];
+
           const setActive = (activeIndex: number) => {
             moduleItems.forEach((el, i) => {
               const isActive = i === activeIndex;
@@ -785,13 +1097,18 @@ export default function CinematicLanding() {
                 ease: "power2.out",
                 opacity: isActive ? 1 : 0.55,
                 x: isActive ? 0 : -2,
+                backgroundColor: isActive ? "rgba(16,185,129,0.10)" : "rgba(255,255,255,0.05)",
+                borderColor: isActive ? "rgba(52,211,153,0.30)" : "rgba(255,255,255,0.10)",
+                boxShadow: isActive
+                  ? "0 0 0 1px rgba(52,211,153,0.18), 0 20px 70px rgba(0,0,0,0.35)"
+                  : "none",
               });
 
               if (label) {
                 gsap.to(label, {
                   duration: 0.25,
                   ease: "power2.out",
-                  color: isActive ? "rgb(244 244 245)" : "rgb(161 161 170)",
+                  color: isActive ? "rgb(167 243 208)" : "rgb(161 161 170)",
                 });
               }
 
@@ -801,9 +1118,60 @@ export default function CinematicLanding() {
                   ease: "power2.out",
                   opacity: isActive ? 1 : 0.35,
                   scale: isActive ? 1.15 : 1,
+                  backgroundColor: isActive ? "rgba(52,211,153,0.95)" : "rgba(52,211,153,0.35)",
                 });
               }
             });
+
+            const profile =
+              streamProfiles[Math.max(0, Math.min(streamProfiles.length - 1, activeIndex))];
+
+            if (moduleStreamBarThroughput) {
+              gsap.to(moduleStreamBarThroughput, {
+                duration: 0.55,
+                ease: "power2.out",
+                width: `${profile.throughput}%`,
+              });
+            }
+            if (moduleStreamBarCoverage) {
+              gsap.to(moduleStreamBarCoverage, {
+                duration: 0.55,
+                ease: "power2.out",
+                width: `${profile.coverage}%`,
+              });
+            }
+            if (moduleStreamBarLatency) {
+              gsap.to(moduleStreamBarLatency, {
+                duration: 0.55,
+                ease: "power2.out",
+                width: `${profile.latency}%`,
+              });
+            }
+
+            if (moduleStreamValueThroughput) {
+              moduleStreamValueThroughput.textContent = `${profile.throughputLabel}: ${profile.throughputValue}`;
+              gsap.fromTo(
+                moduleStreamValueThroughput,
+                { opacity: 0.55 },
+                { opacity: 1, duration: 0.35, ease: "power2.out" },
+              );
+            }
+            if (moduleStreamValueCoverage) {
+              moduleStreamValueCoverage.textContent = `${profile.coverageLabel}: ${profile.coverageValue}`;
+              gsap.fromTo(
+                moduleStreamValueCoverage,
+                { opacity: 0.55 },
+                { opacity: 1, duration: 0.35, ease: "power2.out" },
+              );
+            }
+            if (moduleStreamValueLatency) {
+              moduleStreamValueLatency.textContent = `${profile.latencyLabel}: ${profile.latencyValue}`;
+              gsap.fromTo(
+                moduleStreamValueLatency,
+                { opacity: 0.55 },
+                { opacity: 1, duration: 0.35, ease: "power2.out" },
+              );
+            }
 
             if (
               moduleDetail &&
@@ -843,6 +1211,7 @@ export default function CinematicLanding() {
                 },
               );
             }
+
           };
 
           const moduleTl = gsap.timeline({ paused: true, repeat: -1 });
@@ -959,26 +1328,33 @@ export default function CinematicLanding() {
           gsap.set(detail, { opacity: 1, y: 0 });
         }
 
+        const processTl = gsap.timeline({ paused: true, repeat: -1 });
+        const stepDuration = 2.6;
+        const total = Math.max(steps.length, 1);
+
+        steps.forEach((_, i) => {
+          processTl
+            .add(() => {
+              setActive(i);
+              if (progress) {
+                gsap.to(progress, {
+                  duration: 0.35,
+                  ease: "power2.out",
+                  scaleY: (i + 1) / total,
+                });
+              }
+            })
+            .to({}, { duration: stepDuration });
+        });
+
         ScrollTrigger.create({
           trigger: process,
           start: "top 70%",
           end: "bottom 30%",
-          scrub: true,
-          onUpdate: (self) => {
-            const maxIndex = Math.max(steps.length - 1, 0);
-            const idx = Math.max(
-              0,
-              Math.min(maxIndex, Math.floor(self.progress * (steps.length - 0.0001))),
-            );
-            setActive(idx);
-            if (progress) {
-              gsap.to(progress, {
-                duration: 0.15,
-                ease: "none",
-                scaleY: self.progress,
-              });
-            }
-          },
+          onEnter: () => processTl.play(),
+          onEnterBack: () => processTl.play(),
+          onLeave: () => processTl.pause(),
+          onLeaveBack: () => processTl.pause(),
         });
       }
 
@@ -1211,21 +1587,6 @@ export default function CinematicLanding() {
           <TerminalWordmark size="lg" />
         </div>
 
-        <nav className="hidden items-center gap-8 text-sm text-zinc-300 md:flex">
-          <a className="transition-colors hover:text-zinc-50" href="#servicios">
-            Servicios
-          </a>
-          <a className="transition-colors hover:text-zinc-50" href="#capacidades">
-            Capacidades
-          </a>
-          <a className="transition-colors hover:text-zinc-50" href="#proceso">
-            Proceso
-          </a>
-          <a className="transition-colors hover:text-zinc-50" href="#contacto">
-            Contacto
-          </a>
-        </nav>
-
         <a
           href="#contacto"
           className="inline-flex h-10 items-center justify-center rounded-full border border-white/15 bg-white/5 px-4 text-sm font-medium text-zinc-100 backdrop-blur transition-colors hover:bg-white/10"
@@ -1233,6 +1594,42 @@ export default function CinematicLanding() {
           Agenda una llamada
         </a>
       </header>
+
+      <div className="pointer-events-none fixed right-6 top-1/2 z-40 hidden -translate-y-1/2 md:block">
+        <div className="pointer-events-auto rounded-full border border-white/10 bg-black/35 px-2 py-3 backdrop-blur">
+          <div className="relative flex flex-col items-center gap-2 px-1.5">
+            <div className="pointer-events-none absolute inset-y-3 left-1/2 w-px -translate-x-1/2 bg-white/10" />
+            {navSections.map((s, idx) => {
+              const isActive = idx === activeNav;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  aria-label={s.label}
+                  title={s.label}
+                  onClick={() => {
+                    scrollToSection(s.id, s.ref.current);
+                  }}
+                  className="grid h-6 w-6 place-items-center"
+                >
+                  <span className="relative block">
+                    {isActive ? (
+                      <span className="absolute inset-0 rounded-full bg-emerald-300/20 animate-ping" />
+                    ) : null}
+                    <span
+                      className={
+                        isActive
+                          ? "relative block h-3 w-3 rounded-full bg-emerald-300 shadow-[0_0_0_3px_rgba(16,185,129,0.16)]"
+                          : "relative block h-2.5 w-2.5 rounded-full bg-white/20 transition-colors hover:bg-emerald-300/70"
+                      }
+                    />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
       <main>
         <section ref={heroRef} className="relative overflow-hidden">
@@ -1250,30 +1647,73 @@ export default function CinematicLanding() {
                 data-hero-kicker
                 className="text-xs font-medium tracking-[0.26em] text-zinc-400"
               >
-                SOFTWARE OPERATIVO · SISTEMAS IT · ENTORNOS CRÍTICOS
+                <span className="sr-only">{heroCopy.kicker}</span>
+                <span className="inline-flex max-w-full items-center gap-2 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => setHeroTab("software")}
+                    className={
+                      heroTab === "software"
+                        ? "text-emerald-200 transition-colors"
+                        : "text-zinc-400 transition-colors hover:text-zinc-200"
+                    }
+                  >
+                    <span className="sm:hidden">SW OPERATIVO</span>
+                    <span className="hidden sm:inline">SOFTWARE OPERATIVO</span>
+                  </button>
+                  <span aria-hidden="true" className="text-zinc-600">
+                    ·
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setHeroTab("it")}
+                    className={
+                      heroTab === "it"
+                        ? "text-emerald-200 transition-colors"
+                        : "text-zinc-400 transition-colors hover:text-zinc-200"
+                    }
+                  >
+                    <span className="sm:hidden">SIST. IT</span>
+                    <span className="hidden sm:inline">SISTEMAS IT</span>
+                  </button>
+                  <span aria-hidden="true" className="text-zinc-600">
+                    ·
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setHeroTab("criticos")}
+                    className={
+                      heroTab === "criticos"
+                        ? "text-emerald-200 transition-colors"
+                        : "text-zinc-400 transition-colors hover:text-zinc-200"
+                    }
+                  >
+                    <span className="sm:hidden">ENT. CRÍT.</span>
+                    <span className="hidden sm:inline">ENTORNOS CRÍTICOS</span>
+                  </button>
+                </span>
               </p>
               <h1
                 data-hero-title
                 className="mt-6 text-balance text-4xl font-semibold leading-tight tracking-tight text-zinc-50 md:text-6xl"
               >
-                Tecnología útil.
+                {heroCopy.title.line1}
                 <span className="block bg-gradient-to-r from-emerald-300 via-cyan-200 to-zinc-50 bg-clip-text text-transparent">
-                  Diseño brutal.
+                  {heroCopy.title.line2}
                 </span>
-                Ejecución sin drama.
+                {heroCopy.title.line3}
               </h1>
               <p
                 data-hero-body
                 className="mt-6 max-w-xl text-pretty text-lg leading-8 text-zinc-300"
               >
-                Construimos software para operaciones reales: trazabilidad, control, integraciones e
-                infraestructura. Desde inventarios vivos hasta sistemas IT a la medida.
+                {heroCopy.body}
               </p>
 
               <div className="mt-10 flex flex-col gap-3 sm:flex-row">
                 <a
                   href="#contacto"
-                  className="inline-flex h-12 items-center justify-center rounded-full bg-zinc-50 px-6 text-sm font-semibold text-zinc-950 transition-colors hover:bg-white"
+                  className="inline-flex h-12 items-center justify-center rounded-full bg-emerald-300 px-6 text-sm font-semibold text-emerald-950 transition-colors hover:bg-emerald-200"
                 >
                   Agenda diagnóstico
                 </a>
@@ -1286,13 +1726,13 @@ export default function CinematicLanding() {
               </div>
 
               <div className="mt-12 flex items-center gap-6 text-xs text-zinc-400">
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-emerald-100/90">
                   Implementación rápida
                 </span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-emerald-100/90">
                   Integración con tu stack
                 </span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-emerald-100/90">
                   Calidad enterprise
                 </span>
               </div>
@@ -1395,13 +1835,62 @@ export default function CinematicLanding() {
 
                 <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
                   <p className="text-xs font-medium tracking-[0.22em] text-zinc-400">
-                    EVENT STREAM
+                    SEÑALES DEL MÓDULO
                   </p>
-                  <div className="mt-3 flex items-center gap-3">
-                    <div className="h-2 flex-1 rounded-full bg-white/5">
-                      <div className="h-2 w-[64%] rounded-full bg-gradient-to-r from-emerald-300 to-cyan-200" />
+                  <div className="mt-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <p className="w-24 text-[11px] font-medium tracking-[0.14em] text-zinc-400">
+                        RITMO
+                      </p>
+                      <div className="h-2 flex-1 rounded-full bg-white/5">
+                        <div
+                          data-module-stream-bar="throughput"
+                          className="h-2 w-[72%] rounded-full bg-gradient-to-r from-emerald-300 to-cyan-200"
+                        />
+                      </div>
+                      <span
+                        data-module-stream-value="throughput"
+                        className="w-32 whitespace-nowrap text-right text-xs text-zinc-300"
+                      >
+                        Eventos/min: 2.4k
+                      </span>
                     </div>
-                    <span className="text-xs text-zinc-300">stable</span>
+
+                    <div className="flex items-center gap-3">
+                      <p className="w-24 text-[11px] font-medium tracking-[0.14em] text-zinc-400">
+                        COBERTURA
+                      </p>
+                      <div className="h-2 flex-1 rounded-full bg-white/5">
+                        <div
+                          data-module-stream-bar="coverage"
+                          className="h-2 w-[68%] rounded-full bg-gradient-to-r from-emerald-300/80 to-emerald-200"
+                        />
+                      </div>
+                      <span
+                        data-module-stream-value="coverage"
+                        className="w-32 whitespace-nowrap text-right text-xs text-zinc-300"
+                      >
+                        Cobertura: 68%
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <p className="w-24 text-[11px] font-medium tracking-[0.14em] text-zinc-400">
+                        LATENCIA
+                      </p>
+                      <div className="h-2 flex-1 rounded-full bg-white/5">
+                        <div
+                          data-module-stream-bar="latency"
+                          className="h-2 w-[32%] rounded-full bg-gradient-to-r from-cyan-200/90 to-violet-200/70"
+                        />
+                      </div>
+                      <span
+                        data-module-stream-value="latency"
+                        className="w-32 whitespace-nowrap text-right text-xs text-zinc-300"
+                      >
+                        Latencia: 32ms
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1420,50 +1909,448 @@ export default function CinematicLanding() {
             <div className="relative">
               <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-emerald-950/40 to-transparent" />
               <div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-emerald-950/40 to-transparent" />
-              <div className="flex gap-3 py-5">
-                <div className="olmeca-marquee flex min-w-full shrink-0 gap-3 px-6">
-                  {[
-                    "TypeScript",
-                    "JavaScript",
-                    "Python",
-                    "Go",
-                    "Node.js",
-                    "React",
-                    "Next.js",
-                    "PostgreSQL",
-                    "Docker",
-                    "Kubernetes",
-                  ].map((label) => (
-                    <span
-                      key={label}
-                      className="whitespace-nowrap rounded-full border border-emerald-200/20 bg-emerald-300/10 px-4 py-2 text-xs font-medium tracking-[0.18em] text-emerald-50/90"
-                    >
-                      {label}
-                    </span>
-                  ))}
-                </div>
-                <div className="olmeca-marquee flex min-w-full shrink-0 gap-3 px-6">
-                  {[
-                    "TypeScript",
-                    "JavaScript",
-                    "Python",
-                    "Go",
-                    "Node.js",
-                    "React",
-                    "Next.js",
-                    "PostgreSQL",
-                    "Docker",
-                    "Kubernetes",
-                  ].map((label) => (
-                    <span
-                      key={`dup-${label}`}
-                      className="whitespace-nowrap rounded-full border border-emerald-200/20 bg-emerald-300/10 px-4 py-2 text-xs font-medium tracking-[0.18em] text-emerald-50/90"
-                    >
-                      {label}
-                    </span>
-                  ))}
-                </div>
-              </div>
+              {(() => {
+                const stackItems = [
+                  {
+                    label: "PostgreSQL",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <path
+                          d="M6 7.5C6 5.6 8.7 4 12 4s6 1.6 6 3.5V16.5c0 1.9-2.7 3.5-6 3.5s-6-1.6-6-3.5V7.5Z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                        />
+                        <path
+                          d="M6 7.8C6 9.7 8.7 11.3 12 11.3s6-1.6 6-3.5"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                        />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "Docker",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <path
+                          d="M4 13.2h15.3c-.4 2.9-2.5 6.8-8 6.8-3.6 0-6.6-2.3-7.3-5.4Z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M6.3 11.2h2.2V9H6.3v2.2Zm2.8 0h2.2V9H9.1v2.2Zm2.8 0h2.2V9h-2.2v2.2Zm-5.6 2.4h2.2v-2.2H6.3v2.2Zm2.8 0h2.2v-2.2H9.1v2.2Zm2.8 0h2.2v-2.2h-2.2v2.2Z"
+                          fill="currentColor"
+                          opacity="0.85"
+                        />
+                        <path
+                          d="M19.6 10.5c.9-.4 2-.3 2.4.4-.2 1.6-1.5 2.5-2.9 2.6"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "Kubernetes",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <path
+                          d="M12 3.8l6.5 3.8v8.8L12 20.2 5.5 16.4V7.6L12 3.8Z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M12 7.2l3.2 1.9v3.8L12 14.8 8.8 12.9V9.1L12 7.2Z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "Redis",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <path
+                          d="M6 8.2 12 5l6 3.2-6 3.2-6-3.2Z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M6 12.1l6 3.2 6-3.2"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M6 15.8l6 3.2 6-3.2"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "S3",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <path
+                          d="M8.2 15.8H7.3c-1.8 0-3.3-1.4-3.3-3.2 0-1.7 1.3-3.1 3-3.2.5-2.1 2.4-3.6 4.7-3.6 2.4 0 4.4 1.7 4.8 4 2 .2 3.5 1.8 3.5 3.8 0 2.1-1.7 3.6-3.8 3.6h-.8"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M10 18.2h4"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "Cloudflare",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <path
+                          d="M8.3 16.8h8.6c1.8 0 3.1-1.2 3.1-2.9 0-1.4-1-2.6-2.4-2.8"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M7.9 16.8c-1.9 0-3.4-1.3-3.4-3.1 0-1.6 1.1-2.8 2.6-3.1.6-2.1 2.6-3.7 5-3.7 2.5 0 4.6 1.7 5.1 4"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "Terraform",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <path
+                          d="M6 6.3 10 8.6v4.6L6 10.9V6.3Z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M10.8 9 14.8 11.3v4.6l-4-2.3V9Z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M15.6 8.6 19 10.5v7.2l-3.4-1.9V8.6Z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "Grafana",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <path
+                          d="M12 20a8 8 0 1 0-8-8"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M12 6.8c2.9 0 5.2 2.3 5.2 5.2 0 1.9-1 3.6-2.5 4.5"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M12 12l3.3-1"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "OpenTelemetry",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <path
+                          d="M8.5 6.2 12 4l3.5 2.2v11.6L12 20l-3.5-2.2V6.2Z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M9.8 9.2h4.4"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M9.8 12h4.4"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    ),
+                  },
+                ];
+                const languageItems = [
+                  { label: "TypeScript", mark: "TS" },
+                  { label: "JavaScript", mark: "JS" },
+                  { label: "Python", mark: "PY" },
+                  { label: "Go", mark: "GO" },
+                  { label: "SQL", mark: "SQL" },
+                  { label: "Bash", mark: "SH" },
+                  { label: "Rust", mark: "RS" },
+                  { label: "Java", mark: "JV" },
+                ];
+                const frameworkItems = [
+                  {
+                    label: "Node.js",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <path
+                          d="M12 3.8 19 7.8v8.4l-7 4-7-4V7.8l7-4Z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M9.2 14.8V9.7l5.6 5.1V9.7"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "React",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+                        <path
+                          d="M12 5c3.9 0 7 3.1 7 7s-3.1 7-7 7-7-3.1-7-7 3.1-7 7-7Z"
+                          stroke="currentColor"
+                          strokeWidth="1.4"
+                          opacity="0.35"
+                        />
+                        <path
+                          d="M5.2 10.2c1.2-2.1 4-3.6 6.8-3.6s5.6 1.5 6.8 3.6c-1.2 2.1-4 3.6-6.8 3.6s-5.6-1.5-6.8-3.6Z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M10.2 5.2c2.1 1.2 3.6 4 3.6 6.8s-1.5 5.6-3.6 6.8c-2.1-1.2-3.6-4-3.6-6.8s1.5-5.6 3.6-6.8Z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "Next.js",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <path
+                          d="M7.2 18V6.2h1.7l7.9 11.8V6.2"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "Tailwind",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <path
+                          d="M6 10.2c1.1-2.2 2.9-3.3 5.4-3.3 3.8 0 4.7 2.7 6.6 2.7 1.2 0 2-.6 2.6-1.8"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M2.8 15.2c1.1-2.2 2.9-3.3 5.4-3.3 3.8 0 4.7 2.7 6.6 2.7 1.2 0 2-.6 2.6-1.8"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "Express",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <path
+                          d="M7.2 8.2 16.8 15.8"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M16.8 8.2 7.2 15.8"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    ),
+                  },
+                  {
+                    label: "Prisma",
+                    icon: (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+                        <path
+                          d="M8.2 20 4.6 7.2 11.9 4l7.5 9.9L8.2 20Z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M8.2 20 19.4 13.9"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    ),
+                  },
+                ];
+
+                return (
+                  <>
+                    <div className="overflow-hidden px-6 py-5">
+                      <div className="olmeca-track olmeca-track-fast">
+                        {Array.from({ length: 4 }).map((_, gi) => (
+                          <div
+                            key={`stack-group-${gi}`}
+                            className="olmeca-group flex w-max gap-3 pr-3"
+                            aria-hidden={gi === 0 ? undefined : true}
+                          >
+                            {stackItems.map((item) => (
+                              <span
+                                key={`stack-${gi}-${item.label}`}
+                                className={
+                                  gi === 0
+                                    ? "grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-emerald-300/20 bg-black/20 text-emerald-100/90 shadow-[0_0_0_1px_rgba(16,185,129,0.08)] transition-colors hover:bg-emerald-300/10"
+                                    : "grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-emerald-300/20 bg-black/20 text-emerald-100/90 shadow-[0_0_0_1px_rgba(16,185,129,0.08)]"
+                                }
+                                title={item.label}
+                                aria-label={item.label}
+                              >
+                                {item.icon}
+                              </span>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="overflow-hidden px-6 pb-3">
+                      <div className="olmeca-track olmeca-track-slow">
+                        <div className="olmeca-group flex w-max gap-3 pr-3">
+                          {languageItems.map((item) => (
+                            <span
+                              key={`logo-${item.label}`}
+                              className="group grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-emerald-300/20 bg-black/20 text-[11px] font-semibold tracking-[0.22em] text-emerald-100/90 shadow-[0_0_0_1px_rgba(16,185,129,0.08)] transition-colors hover:bg-emerald-300/10"
+                              title={item.label}
+                              aria-label={item.label}
+                            >
+                              <span className="translate-x-[0.04em]">{item.mark}</span>
+                            </span>
+                          ))}
+                        </div>
+                        <div className="olmeca-group flex w-max gap-3 pr-3" aria-hidden="true">
+                          {languageItems.map((item) => (
+                            <span
+                              key={`logo-dup-${item.label}`}
+                              className="group grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-emerald-300/20 bg-black/20 text-[11px] font-semibold tracking-[0.22em] text-emerald-100/90 shadow-[0_0_0_1px_rgba(16,185,129,0.08)] transition-colors hover:bg-emerald-300/10"
+                              title={item.label}
+                              aria-label={item.label}
+                            >
+                              <span className="translate-x-[0.04em]">{item.mark}</span>
+                            </span>
+                          ))}
+                        </div>
+                        <div className="olmeca-group flex w-max gap-3 pr-3" aria-hidden="true">
+                          {languageItems.map((item) => (
+                            <span
+                              key={`logo-dup2-${item.label}`}
+                              className="group grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-emerald-300/20 bg-black/20 text-[11px] font-semibold tracking-[0.22em] text-emerald-100/90 shadow-[0_0_0_1px_rgba(16,185,129,0.08)] transition-colors hover:bg-emerald-300/10"
+                              title={item.label}
+                              aria-label={item.label}
+                            >
+                              <span className="translate-x-[0.04em]">{item.mark}</span>
+                            </span>
+                          ))}
+                        </div>
+                        <div className="olmeca-group flex w-max gap-3 pr-3" aria-hidden="true">
+                          {languageItems.map((item) => (
+                            <span
+                              key={`logo-dup3-${item.label}`}
+                              className="group grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-emerald-300/20 bg-black/20 text-[11px] font-semibold tracking-[0.22em] text-emerald-100/90 shadow-[0_0_0_1px_rgba(16,185,129,0.08)] transition-colors hover:bg-emerald-300/10"
+                              title={item.label}
+                              aria-label={item.label}
+                            >
+                              <span className="translate-x-[0.04em]">{item.mark}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="overflow-hidden px-6 pb-6">
+                      <div className="olmeca-track olmeca-track-mid">
+                        {Array.from({ length: 6 }).map((_, gi) => (
+                          <div
+                            key={`fw-group-${gi}`}
+                            className="olmeca-group flex w-max gap-3 pr-3"
+                            aria-hidden={gi === 0 ? undefined : true}
+                          >
+                            {frameworkItems.map((item) => (
+                              <span
+                                key={`fw-${gi}-${item.label}`}
+                                className={
+                                  gi === 0
+                                    ? "grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/15 bg-white/5 text-zinc-100/90 shadow-[0_0_0_1px_rgba(255,255,255,0.06)] transition-colors hover:bg-white/10"
+                                    : "grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/15 bg-white/5 text-zinc-100/90 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
+                                }
+                                title={item.label}
+                                aria-label={item.label}
+                              >
+                                {item.icon}
+                              </span>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </section>
@@ -1474,7 +2361,34 @@ export default function CinematicLanding() {
               transform: translateX(0);
             }
             100% {
-              transform: translateX(-100%);
+              transform: translateX(-33.333333%);
+            }
+          }
+
+          @keyframes olmeca_marquee_4 {
+            0% {
+              transform: translateX(0);
+            }
+            100% {
+              transform: translateX(-25%);
+            }
+          }
+
+          @keyframes olmeca_marquee_6 {
+            0% {
+              transform: translateX(0);
+            }
+            100% {
+              transform: translateX(-16.666667%);
+            }
+          }
+
+          @keyframes olmeca_marquee_25 {
+            0% {
+              transform: translateX(0);
+            }
+            100% {
+              transform: translateX(-25%);
             }
           }
 
@@ -1494,7 +2408,53 @@ export default function CinematicLanding() {
             will-change: transform;
           }
 
+          .olmeca-marquee-slow {
+            animation: olmeca_marquee 28s linear infinite;
+            will-change: transform;
+          }
+
+          .olmeca-marquee-mid {
+            animation: olmeca_marquee 22s linear infinite;
+            will-change: transform;
+          }
+
+          .olmeca-track {
+            display: flex;
+            width: max-content;
+            will-change: transform;
+            animation-name: olmeca_marquee;
+            animation-timing-function: linear;
+            animation-iteration-count: infinite;
+          }
+
+          .olmeca-track-fast {
+            animation-duration: 18s;
+            animation-name: olmeca_marquee_4;
+          }
+
+          .olmeca-track-mid {
+            animation-duration: 22s;
+            animation-name: olmeca_marquee_6;
+          }
+
+          .olmeca-track-slow {
+            animation-duration: 28s;
+            animation-name: olmeca_marquee_25;
+          }
+
           .olmeca-paused .olmeca-marquee {
+            animation-play-state: paused;
+          }
+
+          .olmeca-paused .olmeca-marquee-slow {
+            animation-play-state: paused;
+          }
+
+          .olmeca-paused .olmeca-marquee-mid {
+            animation-play-state: paused;
+          }
+
+          .olmeca-paused .olmeca-track {
             animation-play-state: paused;
           }
 
@@ -1512,7 +2472,7 @@ export default function CinematicLanding() {
             <div data-reveal>
               <p className="text-xs font-medium tracking-[0.26em] text-zinc-400">CAPACIDADES</p>
               <h2 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-50 md:text-4xl">
-                Stack sin límites, enfoque en confiabilidad
+                Stack <span className="text-emerald-200">sin límites</span>, enfoque en confiabilidad
               </h2>
               <p className="mt-4 text-lg leading-8 text-zinc-300">
                 Elegimos la tecnología que mejor se adapta a tu operación y mantenemos el código limpio,
@@ -1543,49 +2503,163 @@ export default function CinematicLanding() {
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                     <p className="text-xs text-zinc-400">Eventos auditados</p>
                     <p className="mt-2 text-2xl font-semibold text-zinc-50">
-                      <span className="text-emerald-200" data-kpi-value data-kpi-to="9670">
-                        9670
+                      <span className="text-emerald-200" data-kpi-value data-kpi-to="2180">
+                        2180
                       </span>
                     </p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                     <p className="text-xs text-zinc-400">Alertas resueltas</p>
                     <p className="mt-2 text-2xl font-semibold text-zinc-50">
-                      <span className="text-emerald-200" data-kpi-value data-kpi-to="128">
-                        128
+                      <span className="text-emerald-200" data-kpi-value data-kpi-to="7420">
+                        7420
                       </span>
                     </p>
                   </div>
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-8">
+            <div className="grid grid-cols-1 gap-6">
               <div
                 data-reveal
-                data-parallax="down"
-                className="rounded-3xl border border-white/10 bg-white/5 p-6 transition-transform duration-300 hover:-translate-y-1"
+                className="flex min-h-[132px] flex-col rounded-3xl border border-white/10 bg-white/5 p-6 transition-transform duration-300 hover:-translate-y-1"
               >
-                <p className="text-sm font-semibold text-zinc-50">Arquitectura</p>
+                <div className="flex items-center gap-3">
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-emerald-300/20 bg-emerald-300/10 text-emerald-200">
+                    <svg
+                      width="22"
+                      height="22"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M12 9v2.5"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                      <path
+                        d="M7.5 12.5h9"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                      <path
+                        d="M7.5 12.5V15M12 12.5V15M16.5 12.5V15"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                      <path
+                        d="M12 5.4a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2Z"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                      />
+                      <path
+                        d="M7 15a1.6 1.6 0 1 0 0 3.2A1.6 1.6 0 0 0 7 15ZM12 15a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2ZM17 15a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2Z"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                      />
+                    </svg>
+                  </span>
+                  <p className="text-sm font-semibold text-zinc-50">Arquitectura</p>
+                </div>
                 <p className="mt-2 text-sm leading-7 text-zinc-300">
                   Multi-tenant, roles y permisos, auditoría, eventos, integraciones.
                 </p>
               </div>
               <div
                 data-reveal
-                data-parallax="up"
-                className="rounded-3xl border border-white/10 bg-white/5 p-6 transition-transform duration-300 hover:-translate-y-1"
+                className="min-h-[132px] rounded-3xl border border-white/10 bg-white/5 p-6 transition-transform duration-300 hover:-translate-y-1"
               >
-                <p className="text-sm font-semibold text-zinc-50">Integraciones</p>
+                <div className="flex items-center gap-3">
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-emerald-300/20 bg-emerald-300/10 text-emerald-200">
+                    <svg
+                      width="22"
+                      height="22"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M6.2 7.2h7v7h-7v-7Z"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M10.8 9.8h7v7h-7v-7Z"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M9.2 10.2h1.1c0.9 0 1.7-0.8 1.7-1.7V7.4"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M14.8 13.8h-1.1c-0.9 0-1.7 0.8-1.7 1.7v1.1"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                  <p className="text-sm font-semibold text-zinc-50">Integraciones</p>
+                </div>
                 <p className="mt-2 text-sm leading-7 text-zinc-300">
                   APIs, ETLs, sincronización, conectores a sistemas existentes.
                 </p>
               </div>
               <div
                 data-reveal
-                data-parallax="down"
-                className="rounded-3xl border border-white/10 bg-white/5 p-6 transition-transform duration-300 hover:-translate-y-1"
+                className="flex min-h-[132px] flex-col rounded-3xl border border-white/10 bg-white/5 p-6 transition-transform duration-300 hover:-translate-y-1"
               >
-                <p className="text-sm font-semibold text-zinc-50">Observabilidad</p>
+                <div className="flex items-center gap-3">
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-emerald-300/20 bg-emerald-300/10 text-emerald-200">
+                    <svg
+                      width="22"
+                      height="22"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M4 12a8 8 0 0 1 16 0"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                      <path
+                        d="M7 12a5 5 0 0 1 10 0"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                      <path
+                        d="M12 12l3.5-2.5"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M12 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                      />
+                    </svg>
+                  </span>
+                  <p className="text-sm font-semibold text-zinc-50">Observabilidad</p>
+                </div>
                 <p className="mt-2 text-sm leading-7 text-zinc-300">
                   Monitoreo, logs, alertas y métricas para que el sistema no sea una caja negra.
                 </p>
@@ -1862,7 +2936,38 @@ export default function CinematicLanding() {
                 data-process-step
                 className="rounded-3xl border border-white/10 bg-white/5 p-6"
               >
-                <p className="text-xs font-medium text-zinc-400">01</p>
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-xs font-medium text-zinc-400">01</p>
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-emerald-300/20 bg-emerald-300/10 text-emerald-200">
+                    <svg
+                      width="22"
+                      height="22"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                      />
+                      <path
+                        d="M21 21l-4.2-4.2"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                      <path
+                        d="M11 7v4l3 2"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                </div>
                 <p className="mt-3 font-semibold text-zinc-50">Diagnóstico</p>
                 <p className="mt-2 text-sm leading-7 text-zinc-300">
                   Objetivos, contexto operativo y restricciones reales.
@@ -1873,7 +2978,38 @@ export default function CinematicLanding() {
                 data-process-step
                 className="rounded-3xl border border-white/10 bg-white/5 p-6"
               >
-                <p className="text-xs font-medium text-zinc-400">02</p>
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-xs font-medium text-zinc-400">02</p>
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-emerald-300/20 bg-emerald-300/10 text-emerald-200">
+                    <svg
+                      width="22"
+                      height="22"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M8 3h10a2 2 0 0 1 2 2v13a3 3 0 0 1-3 3H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M9 8h8M9 12h8M9 16h5"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                      <path
+                        d="M5 7H4a2 2 0 0 0-2 2v10"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </span>
+                </div>
                 <p className="mt-3 font-semibold text-zinc-50">Diseño & arquitectura</p>
                 <p className="mt-2 text-sm leading-7 text-zinc-300">
                   Propuesta técnica, UX y plan de implementación.
@@ -1884,7 +3020,38 @@ export default function CinematicLanding() {
                 data-process-step
                 className="rounded-3xl border border-white/10 bg-white/5 p-6"
               >
-                <p className="text-xs font-medium text-zinc-400">03</p>
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-xs font-medium text-zinc-400">03</p>
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-emerald-300/20 bg-emerald-300/10 text-emerald-200">
+                    <svg
+                      width="22"
+                      height="22"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M3 20h18"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                      <path
+                        d="M7 20V10l5-4 5 4v10"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M10 20v-5h4v5"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                </div>
                 <p className="mt-3 font-semibold text-zinc-50">Construcción</p>
                 <p className="mt-2 text-sm leading-7 text-zinc-300">
                   Iteraciones cortas, entregables visibles, calidad.
@@ -1895,10 +3062,35 @@ export default function CinematicLanding() {
                 data-process-step
                 className="rounded-3xl border border-white/10 bg-white/5 p-6"
               >
-                <p className="text-xs font-medium text-zinc-400">04</p>
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-xs font-medium text-zinc-400">04</p>
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-emerald-300/20 bg-emerald-300/10 text-emerald-200">
+                    <svg
+                      width="22"
+                      height="22"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M12 9v6"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </span>
+                </div>
                 <p className="mt-3 font-semibold text-zinc-50">Lanzamiento</p>
                 <p className="mt-2 text-sm leading-7 text-zinc-300">
-                  Deploy, monitoreo y mejora continua.
+                  Deploy controlado, monitoreo y ajustes finos.
                 </p>
               </div>
             </div>
