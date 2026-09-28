@@ -327,9 +327,9 @@ function TerminalWordmark({ size = "lg" }: { size?: "lg" | "sm" }) {
         }
       >
         <svg
-          width={isSmall ? 130 : 240}
+          width={isSmall ? 146 : 240}
           height={isSmall ? 24 : 40}
-          viewBox={isSmall ? "0 0 130 24" : "0 0 240 40"}
+          viewBox={isSmall ? "0 0 146 24" : "0 0 240 40"}
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           role="img"
@@ -372,7 +372,7 @@ function TerminalWordmark({ size = "lg" }: { size?: "lg" | "sm" }) {
             OLMECA
           </text>
           <text
-            x={isSmall ? 98 : 160}
+            x={isSmall ? 102 : 160}
             y={isSmall ? 16 : 26}
             fontSize={isSmall ? 12 : 18}
             fontFamily="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji"
@@ -3144,7 +3144,7 @@ export default function CinematicLanding() {
                 <a
                   data-reveal
                   className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 bg-white/5 px-6 text-sm font-semibold text-zinc-100 backdrop-blur transition-colors hover:bg-white/10"
-                  href="https://wa.me/5219932171855?text=Hola%20OLMECA%20CODE"
+                  href="https://wa.me/529932171855?text=Hola%20OLMECA%20CODE"
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -3153,11 +3153,32 @@ export default function CinematicLanding() {
               </div>
             </div>
 
-            <div data-reveal className="mt-10 flex items-center justify-between border-t border-white/10 pt-6">
+            <div data-reveal className="mt-10 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <TerminalWordmark size="sm" />
               </div>
-              <p className="text-xs text-zinc-500">© {new Date().getFullYear()} OLMECA CODE</p>
+              <div className="flex items-center gap-5 text-xs text-zinc-500">
+                <a
+                  href="https://www.unknownshoppers.com/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="transition-colors hover:text-zinc-300"
+                >
+                  Unknown Shoppers
+                </a>
+                <a
+                  href="https://datosduros.unknownshoppers.com/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="transition-colors hover:text-zinc-300"
+                >
+                  Datos Duros
+                </a>
+                <span aria-hidden="true" className="text-zinc-700">
+                  ·
+                </span>
+                <p>© {new Date().getFullYear()} OLMECA CODE</p>
+              </div>
             </div>
           </div>
         </section>
